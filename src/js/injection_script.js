@@ -59,6 +59,9 @@ unsafelyNavigate=target=>{
 		case (/(krnl\.ca|hugegames\.io)/.exec(target)||{}).input:
 		url+="&safe_in=15"
 		break;
+		case (/(bowfile\.com)/.exec(target)||{}).input:
+		url+="&safe_in=20"
+		break;
 	}
 	unsafelyAssign(url)
 },
@@ -544,12 +547,6 @@ domainBypass(/bc\.vc|bcvc\.live/,()=>{
 	window.setInterval=f=>setInterval(f,1)
 	awaitElement("a#getLink:not([style^='display'])",a=>a.click())
 })
-domainBypass("tei.ai", () => {
-	ensureDomLoaded(() => {
-	    var link = atob(`aH${document.querySelector("#link-view [name='token']").value.split("aH").slice(1).join("aH")}`);
-	    safelyNavigate(link);
-	});
-});
 domainBypass("shortly.xyz",()=>{
 	if(location.pathname.substr(0,3)=="/r/")
 	{
@@ -1288,8 +1285,6 @@ ensureDomLoaded(()=>{
 			f.action+="#bypassClipboard="+location.pathname.substr(1)
 		})
 	}))
-	hrefBypass(/mirrored\.to\/files\//,()=>ifElement("#dl_form button",b=>b.click()))
-	hrefBypass(/mirrored\.to\/(down|get)link\//,()=>ifElement(".centered.highlight a[href]",safelyNavigate))
 	hrefBypass(/new\.lewd\.ninja\/external\/game\/([0-9]+)\/([a-z0-9]{64})/,m=>{
 		let f=document.createElement("form")
 		f.method="POST"
@@ -2621,7 +2616,53 @@ domainBypass('apkadmin.com', () => {
 
 
 
+	hrefBypass(/mirrored\.to\/files\//,()=> {
+		if (location.href.includes('hash')) return; // we already bypassed to here
+		const href = document.querySelector(`a[href^="${location.href}"]`).href;
+		safelyAssign(href);
+	})
+	hrefBypass(/mirrored\.to\/(down|get)link\//,()=>ifElement(".centered.highlight a[href]",safelyNavigate))
+
+
+	domainBypass("tei.ai", () => {
+		const token = document.querySelector('#link-view [name="token"]').value;
+		const decoded = atob(token);
+		const page = decoded.split('http').pop();
+		const link = `http${page}`;
+		safelyNavigate(link);
+	});
+
+domainBypass("bowfile.com", () => {
+	const regex=/.*let next = "(http[^"]+)";.*/
+	document.querySelectorAll("script").forEach(script=>{
+		let matches=regex.exec(script.textContent)
+		if(matches&&matches[1])
+		{
+			safelyNavigate(matches[1])
+		}
+	})
+})
+
+
+domainBypass("acorta-link.com", () => {
+    const regex=/([a-zA-Z]{1,})= decode_link/
+    document.querySelectorAll("script").forEach(script=>{
+        const matches=regex.exec(script.text)
+        if(matches&&matches[1])
+        {
+            let url = window[matches[1]]
+            if (!/^(?:f|ht)tps?\:\/\//.test(url)) {
+                url = "http:" + url;
+            }
+            safelyNavigate(url) 
+        }
+    })
+})
+
 	//Insertion point for bypasses detecting certain DOM elements. Bypasses here will no longer need to call ensureDomLoaded.
+	domainBypass('letsboost.net', () => {
+		return safelyAssign(JSON.parse(stepDat).pop().url)
+	});
 	let t=document.querySelector("title")
 	if(!bypassed&&t)
 	{
