@@ -1,66 +1,114 @@
-const brws=(typeof browser=="undefined"?chrome:browser),
-firefox=(brws.runtime.getURL("").substr(0,4)=="moz-"),
-extension_version=brws.runtime.getManifest().version,
-definitions_version="",
-getRedirect=(url,referer,safe_in)=>{
-	if(!isGoodLink(url))
-	{
+/**
+ * Variable definitions
+ */
+import fastforward from "./backend/FastForward";
+const FastForward = new fastforward(browser ? browser : chrome);
+
+const brws = undefined === browser? chrome: browser;
+const firefox = FastForward.getUrl().startsWith("moz-");
+const extension_version = FastForward.manifest.version;
+const definitions_version = "";
+const soralink_contribute = {};
+const refererCache = {};
+
+
+/**
+ * Function definitions
+ */
+
+/**
+ * Check if the url is valid,
+ * @param url
+ * @returns boolean
+ */
+function checkUrlValidity(url) {
+	if ((typeof link !== 'string' && !('protocol' in url)) || url.split('#').pop() === location.href.split('#').pop())
+		return false;
+
+	try {
+		if (!('protocol' in url))
+			url = new URL(decodeURI(url).trim().toLocaleLowerCase());
+
+		if (url.hostname === 'localhost' || u.hostname === '[::1]' || /^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/.test(u.hostname))
+			return false;
+
+		const parts = u.hostname.split('.');
+		if ('10' === parts[0] || ('172' === parts[0] && (parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31)) || ('192' === parts[0] && '168' === parts[1]))
+			return false;
+
+		return ['http:', 'https:', 'mailto:', 'irc:', 'telnet:', 'tel:', 'svn:'].includes(url.protocol);
+	} catch (e) {
+		return false;
+	}
+}
+/**
+ * get the parsed redirectUrl
+ * @param url
+ * @param referer
+ * @param safe_in
+ * @returns {{redirectUrl: string}}
+ */
+function getRedirect({url, referer, safe_in} = {}){
+	const valid_url = checkUrlValidity(url);
+	if(!valid_url)
 		return
-	}
-	let redirectUrl=brws.runtime.getURL("html/before-navigate.html")+"?target="+encodeURIComponent(url)
+
+	const before_navigate_html_path = brws.runtime.getURL("html/before-navigate.html");
+	let redirectUrl = `${before_navigate_html_path}?target=${encodeURIComponent(url)}`;
+
 	if(referer)
-	{
-		redirectUrl+="&referer="+encodeURIComponent(referer)
-	}
-	if(safe_in!==undefined)
-	{
-		redirectUrl+="&safe_in="+safe_in
-	}
+		redirectUrl += `&referer=${encodeURIComponent(referer)}`;
+
+	if(safe_in)
+		redirectUrl += `&safe_in=${safe_in}`;
+
 	countIt()
 	return {redirectUrl}
-},
-encodedRedirect=(url,referer,safe_in)=>getRedirect(decodeURIComponent(url),referer,safe_in),
-isGoodLink=link=>{
-	if(typeof link !== "string"||(link.split("#")[0]==location.href.split("#")[0]&&!isGoodLink_allowSelf))
-	{
-		return false
-	}
-	try
-	{
-		let u = new URL(decodeURI(link).trim().toLocaleLowerCase())
-		//check if host is a private/internal ip
-		if (u.hostname === 'localhost' || u.hostname === '[::1]' || /^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/.test(u.hostname)) {
-			return false
-		}
-		var parts = u.hostname.split('.');
-		if (parts[0] === '10' || (parts[0] === '172' && (parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31)) || (parts[0] === '192' && parts[1] === '168')) {
-			return false
-		}
-		// Check if protocol is safe
-		let safeProtocols = ["http:", "https:", "mailto:", "irc:", "telnet:", "tel:", "svn:"]
-		if (!safeProtocols.includes(u.protocol)) {
-			return false
-		}
-	}
-	catch(e)
-	{
-		return false
-	}
-	return true
-},
-countIt=()=>{
-	brws.storage.local.set({bypass_counter:++bypassCounter})
-	sendToOptions({bypassCounter})
-},
-resetCounter=()=>{
-	bypassCounter=0
-	brws.storage.local.set({bypass_counter:0})
-	sendToOptions({bypassCounter})
+}
+
+/**
+ * get the decoded redirectUrl
+ * @param url
+ * @param referer
+ * @param safe_in
+ * @returns {{redirectUrl: string}}
+ */
+function decodeRedirect({url,referer,safe_in} = {}) {
+	return getRedirect({
+		url: decodeURIComponent(url),
+		referer,
+		safe_in
+	});
+}
+/**
+ * increase the bypassCounter
+ */
+function countIt() {
+	FastForward.options.bypassCounter++;
+	brws.storage.local.set({
+		bypass_counter: FastForward.options.bypassCounter
+	});
+	sendToOptions({
+		bypassCounter: FastForward.options.bypassCounter
+	})
+}
+
+/**
+ * clear the bypassCounter
+ */
+function resetCounter() {
+	FastForward.options.bypassCounter = 0;
+	brws.storage.local.set({
+		bypass_counter:0
+	})
+	sendToOptions({
+		bypassCounter: FastForward.options.bypassCounter
+	})
 }
 
 // Install handler
 brws.runtime.onInstalled.addListener(details=>{
-	if(details.reason=="install")
+	if(details.reason === "install")
 	{
 		brws.tabs.create({url:"https://fastforward.team/firstrun"})
 	}
@@ -79,13 +127,11 @@ brws.runtime.onStartup.addListener(() => {
 
 // Uninstall handler
 
-// Keeping track of options
-var bypassCounter=0,enabled=true,instantNavigation=true,trackerBypassEnabled=true,instantNavigationTrackers=false,blockIPLoggers=true,crowdEnabled=true,userScript=""
 brws.storage.sync.get(["disable","navigation_delay","no_tracker_bypass","no_instant_navigation_trackers","allow_ip_loggers","crowd_bypass","crowd_bypass_opt_out","crowd_open_delay","crowd_close_delay","no_info_box"],res=>{
 	if(res)
 	{
-		enabled=(!res.disable||res.disable!=="true")
-		if(!enabled)
+		FastForward.options.enabled = (!res.disable||res.disable!=="true")
+		if(!FastForward.options.enabled)
 		{
 			brws.browserAction.setIcon({path: {
 				"48": "icon_disabled/48.png",
@@ -97,7 +143,7 @@ brws.storage.sync.get(["disable","navigation_delay","no_tracker_bypass","no_inst
 		}
 		if(res.navigation_delay)
 		{
-			instantNavigation=(res.navigation_delay==0)
+			FastForward.options.instantNavigation=(res.navigation_delay==0)
 			if(res.navigation_delay==61)
 			{
 				brws.storage.sync.set({navigation_delay:-1})
@@ -108,16 +154,16 @@ brws.storage.sync.get(["disable","navigation_delay","no_tracker_bypass","no_inst
 			brws.storage.sync.set({navigation_delay:0})
 		}
 		trackerBypassEnabled=(res.no_tracker_bypass!=="true")
-		instantNavigationTrackers=(res.no_instant_navigation_trackers!=="true")
-		blockIPLoggers=(res.allow_ip_loggers!=="true")
+		FastForward.options.instantNavigationTrackers=(res.no_instant_navigation_trackers!=="true")
+		FastForward.options.blockIPLoggers=(res.allow_ip_loggers!=="true")
 		if(res.crowd_bypass)
 		{
-			crowdEnabled=(res.crowd_bypass==="true")
+			FastForward.options.crowdEnabled=(res.crowd_bypass==="true")
 		}
 		else
 		{
-			crowdEnabled=(res.crowd_bypass_opt_out==="false"||!firefox)
-			if(crowdEnabled)
+			FastForward.options.crowdEnabled=(res.crowd_bypass_opt_out==="false"||!firefox)
+			if(FastForward.options.crowdEnabled)
 			{
 				brws.storage.sync.set({crowd_bypass:"true"})
 			}
@@ -143,8 +189,8 @@ brws.storage.sync.get(["disable","navigation_delay","no_tracker_bypass","no_inst
 brws.storage.onChanged.addListener(changes=>{
 	if(changes.disable)
 	{
-		enabled=(changes.disable.newValue!=="true")
-		if(enabled)
+		FastForward.options.enabled = (changes.disable.newValue!=="true")
+		if(FastForward.options.enabled)
 		{
 			brws.browserAction.setIcon({path: {
 				"48": "icon/48.png",
@@ -167,7 +213,7 @@ brws.storage.onChanged.addListener(changes=>{
 	}
 	if(changes.navigation_delay)
 	{
-		instantNavigation=(changes.navigation_delay.newValue==0)
+		FastForward.options.instantNavigation=(changes.navigation_delay.newValue==0)
 	}
 	if(changes.no_tracker_bypass)
 	{
@@ -175,25 +221,24 @@ brws.storage.onChanged.addListener(changes=>{
 	}
 	if(changes.no_instant_navigation_trackers)
 	{
-		instantNavigationTrackers=(changes.no_instant_navigation_trackers.newValue!=="true")
+		FastForward.options.instantNavigationTrackers=(changes.no_instant_navigation_trackers.newValue!=="true")
 	}
 	if(changes.allow_ip_loggers)
 	{
-		blockIPLoggers=(changes.allow_ip_loggers.newValue!=="true")
+		FastForward.options.blockIPLoggers=(changes.allow_ip_loggers.newValue!=="true")
 	}
 	if(changes.crowd_bypass)
 	{
-		crowdEnabled=(changes.crowd_bypass.newValue==="true")
+		FastForward.options.crowdEnabled=(changes.crowd_bypass.newValue==="true")
 	}
 	if(changes.userscript)
 	{
-		userScript=changes.userscript.newValue
+		FastForward.definitions.userScript=changes.userscript.newValue
 	}
 	refreshInjectionScript()
 })
 
 // Bypass definition management
-let updateStatus = "", injectionScript = "", preflightRules = {}, upstreamInjectionScript = "", upstreamCommit, channel = {}, optionsTab, optionsPort, bypassClipboard = ""
 const updateBypassDefinitions = callback => {
 	if(updateStatus != "")
 	{
@@ -226,97 +271,111 @@ const updateBypassDefinitions = callback => {
 		updateStatus = ""
 		sendToOptions({upstreamCommit, updateStatus})
 	}
-	let xhr = new XMLHttpRequest()
-	xhr.onload = () => {
+	// if(definitions_version==="")
+	// {
+	// 	xhr.onerror = () => {
+	// 		let xhr = new XMLHttpRequest()
+	// 		xhr.onload = () => {
+	// 			const latestCommit = JSON.parse(xhr.responseText).sha
+	// 			if(latestCommit == upstreamCommit)
+	// 			{
+	// 				updateStatus = ""
+	// 				sendToOptions({updateStatus})
+	// 				callback(false)
+	// 			}
+	// 			else
+	// 			{
+	// 				updateStatus = "updating"
+	// 				if(upstreamCommit == "")
+	// 				{
+	// 					sendToOptions({upstreamCommit: latestCommit})
+	// 				}
+	// 				sendToOptions({updateStatus})
+	// 				callback(true)
+	// 				upstreamCommit = latestCommit
+	// 				let downloads = 0
+	// 				xhr = new XMLHttpRequest()
+	// 				xhr.onload = () => {
+	// 					upstreamInjectionScript = xhr.responseText
+	// 					if(++downloads == 2)
+	// 					{
+	// 						finishDownload()
+	// 					}
+	// 				}
+	// 				xhr.onerror = () => {
+	// 					if(++downloads == 2)
+	// 					{
+	// 						finishDownload()
+	// 					}
+	// 				}
+	// 				xhr.open("GET", "https://cdn.jsdelivr.net/gh/FastForwardTeam/FastForward@" + upstreamCommit + "/src/js/injection_script.js", true)
+	// 				xhr.send()
+	// 				let xhr2 = new XMLHttpRequest()
+	// 				xhr2.onload = () => {
+	// 					preflightRules = JSON.parse(xhr2.responseText)
+	// 					if(++downloads == 2)
+	// 					{
+	// 						finishDownload()
+	// 					}
+	// 				}
+	// 				xhr2.onerror = () => {
+	// 					if(++downloads == 2)
+	// 					{
+	// 						finishDownload()
+	// 					}
+	// 				}
+	// 				xhr2.open("GET", "https://cdn.jsdelivr.net/gh/FastForwardTeam/FastForward@" + upstreamCommit + "/src/js/rules.json", true)
+	// 				xhr2.send()
+	// 			}
+	// 		}
+	// 		xhr.onerror = () => {
+	// 			updateStatus = ""
+	// 			sendToOptions({updateStatus})
+	// 			callback(false)
+	// 		}
+	// 		xhr.open("GET", "https://api.github.com/repos/FastForwardTeam/FastForward/commits/main", true)
+	// 		xhr.send()
+	// 	}
+	// }
+
+	async function getTextFromStream(readableStream) {
+		let reader = readableStream.getReader();
+		let utf8Decoder = new TextDecoder();
+		let nextChunk;
+
+		let resultStr = '';
+
+		while (!(nextChunk = await reader.read()).done) {
+			let partialData = nextChunk.value;
+			resultStr += utf8Decoder.decode(partialData);
+		}
+
+		return resultStr;
+	}
+
+	fetch(brws.runtime.getURL('injection_script.js'))
+		.then(r => r.body)
+		.then(getTextFromStream)
+		.then(r => {
 		updateStatus = "updating"
 		upstreamCommit = definitions_version
 		sendToOptions({upstreamCommit, updateStatus})
 		callback(true)
-		upstreamInjectionScript = xhr.responseText
-		xhr = new XMLHttpRequest()
-		xhr.open("GET", brws.runtime.getURL("rules.json"), true)
-		xhr.onload = () => {
-			preflightRules = JSON.parse(xhr.responseText)
+		upstreamInjectionScript = r;
+
+		fetch(brws.runtime.getURL("rules.json")).then(res => res.body).then(getTextFromStream).then(res => {
+			preflightRules = JSON.parse(res)
 			finishDownload()
-		}
-		xhr.send()
-	}
-	if(definitions_version==="")
-	{
-		xhr.onerror = () => {
-			let xhr = new XMLHttpRequest()
-			xhr.onload = () => {
-				const latestCommit = JSON.parse(xhr.responseText).sha
-				if(latestCommit == upstreamCommit)
-				{
-					updateStatus = ""
-					sendToOptions({updateStatus})
-					callback(false)
-				}
-				else
-				{
-					updateStatus = "updating"
-					if(upstreamCommit == "")
-					{
-						sendToOptions({upstreamCommit: latestCommit})
-					}
-					sendToOptions({updateStatus})
-					callback(true)
-					upstreamCommit = latestCommit
-					let downloads = 0
-					xhr = new XMLHttpRequest()
-					xhr.onload = () => {
-						upstreamInjectionScript = xhr.responseText
-						if(++downloads == 2)
-						{
-							finishDownload()
-						}
-					}
-					xhr.onerror = () => {
-						if(++downloads == 2)
-						{
-							finishDownload()
-						}
-					}
-					xhr.open("GET", "https://cdn.jsdelivr.net/gh/FastForwardTeam/FastForward@" + upstreamCommit + "/src/js/injection_script.js", true)
-					xhr.send()
-					let xhr2 = new XMLHttpRequest()
-					xhr2.onload = () => {
-						preflightRules = JSON.parse(xhr2.responseText)
-						if(++downloads == 2)
-						{
-							finishDownload()
-						}
-					}
-					xhr2.onerror = () => {
-						if(++downloads == 2)
-						{
-							finishDownload()
-						}
-					}
-					xhr2.open("GET", "https://cdn.jsdelivr.net/gh/FastForwardTeam/FastForward@" + upstreamCommit + "/src/js/rules.json", true)
-					xhr2.send()
-				}
-			}
-			xhr.onerror = () => {
-				updateStatus = ""
-				sendToOptions({updateStatus})
-				callback(false)
-			}
-			xhr.open("GET", "https://api.github.com/repos/FastForwardTeam/FastForward/commits/main", true)
-			xhr.send()
-		}
-	}
-	xhr.open("GET", brws.runtime.getURL("injection_script.js"), true)
-	xhr.send()
+		})
+	});
 },
 refreshInjectionScript = () => {
 	Object.values(onBeforeRequest_rules).forEach(func => brws.webRequest.onBeforeRequest.removeListener(func))
 	Object.values(onBeforeSendHeaders_rules).forEach(func => brws.webRequest.onBeforeSendHeaders.removeListener(func))
 	Object.values(onHeadersReceived_rules).forEach(func => brws.webRequest.onHeadersReceived.removeListener(func))
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
-		injectionScript = (upstreamInjectionScript + "\n" + userScript)
+		injectionScript = (upstreamInjectionScript + "\n" + FastForward.definitions.userScript)
 		.split("UNIVERSAL_BYPASS_INTERNAL_VERSION").join("10")
 		.split("UNIVERSAL_BYPASS_EXTERNAL_VERSION").join(extension_version)
 		.split("UNIVERSAL_BYPASS_INJECTION_VERSION").join(upstreamCommit?upstreamCommit.substr(0,7):"dev")
@@ -353,7 +412,7 @@ brws.runtime.onMessage.addListener((req, sender, respond) => {
 	switch(req.type)
 	{
 		case "content":
-		respond({enabled, channel, crowdEnabled, injectionScript})
+		respond({enabled:FastForward.options.enabled , channel, crowdEnabled: FastForward.options.crowdEnabled, injectionScript})
 		break;
 
 		case "count-it":
@@ -371,7 +430,7 @@ brws.runtime.onMessage.addListener((req, sender, respond) => {
 		break;
 
 		case "crowd-contribute":
-		if(crowdEnabled)
+		if(FastForward.options.crowdEnabled)
 		{
 			let xhr=new XMLHttpRequest()
 			xhr.open("POST","https://crowd.fastforward.team/crowd/contribute_v1",true)
@@ -396,70 +455,77 @@ brws.runtime.onConnect.addListener(port => {
 	switch(port.name)
 	{
 		case "options":
-		if(optionsTab)
-		{
-			optionsPort.disconnect()
-			brws.tabs.remove(optionsTab)
-		}
-		optionsTab=port.sender.tab.id
-		optionsPort=port
-		port.onDisconnect.addListener(()=>{
-			optionsTab=undefined
-			optionsPort=undefined
-		})
-		port.onMessage.addListener(req=>{
-			switch(req.type)
+			if(optionsTab)
 			{
-				case "update":
-				updateBypassDefinitions(updateSuccess => port.postMessage({updateSuccess}))
-				break;
+				optionsPort.disconnect()
+				brws.tabs.remove(optionsTab)
 			}
-		})
-		port.postMessage({updateStatus, upstreamCommit, bypassCounter, userScript, extension_version, amo: !!definitions_version})
-		break;
+			optionsTab=port.sender.tab.id
+			optionsPort=port
+			port.onDisconnect.addListener(()=>{
+				optionsTab=undefined
+				optionsPort=undefined
+			})
+			port.onMessage.addListener(req=>{
+				switch(req.type)
+				{
+					case "update":
+					updateBypassDefinitions(updateSuccess => port.postMessage({updateSuccess}))
+					break;
+				}
+			})
+			port.postMessage({
+				updateStatus,
+				upstreamCommit,
+				bypassCounter: FastForward.options.bypassCounter,
+				userScript: FastForward.definitions.userScript,
+				extension_version,
+				amo: !!definitions_version
+			})
+			break;
 
 		case "crowd-query":
-		port.onMessage.addListener(msg=>{
-			let xhr=new XMLHttpRequest()
-			xhr.onreadystatechange=()=>{
-				if(xhr.readyState==4)
-				{
-					port.postMessage(xhr.status==200&&xhr.responseText!=""?xhr.responseText:"")
-				}
-			}
-			xhr.open("POST","https://crowd.fastforward.team/crowd/query_v1",true)
-			xhr.setRequestHeader("Content-Type","application/x-www-form-urlencoded")
-			xhr.send("domain="+encodeURIComponent(msg.domain)+"&path="+encodeURIComponent(msg.crowdPath))
-		})
-		break;
-
-		case "adlinkfly-info":
-		port.onMessage.addListener(msg=>{
-			let xhr=new XMLHttpRequest(),t="",iu=msg
-			xhr.onload=()=>{
-				let i=new DOMParser().parseFromString(xhr.responseText,"text/html").querySelector("img[src^='//api.miniature.io']")
-				if(i)
-				{
-					let url=new URL(i.src)
-					if(url.search&&url.search.indexOf("url="))
+			port.onMessage.addListener(msg=>{
+				let xhr=new XMLHttpRequest()
+				xhr.onreadystatechange=()=>{
+					if(xhr.readyState==4)
 					{
-						t=decodeURIComponent(url.search.split("url=")[1].split("&")[0])
+						port.postMessage(xhr.status==200&&xhr.responseText!=""?xhr.responseText:"")
 					}
 				}
-				port.postMessage(t)
-			}
-			xhr.onerror=()=>port.postMessage(t)
-			if(iu.substr(-1) != "/")
-			{
-				iu += "/"
-			}
-			xhr.open("GET", iu+"info", true)
-			xhr.send()
-		})
-		break;
+				xhr.open("POST","https://crowd.fastforward.team/crowd/query_v1",true)
+				xhr.setRequestHeader("Content-Type","application/x-www-form-urlencoded")
+				xhr.send("domain="+encodeURIComponent(msg.domain)+"&path="+encodeURIComponent(msg.crowdPath))
+			})
+			break;
+
+		case "adlinkfly-info":
+			port.onMessage.addListener(msg=>{
+				let xhr=new XMLHttpRequest(),t="",iu=msg
+				xhr.onload=()=>{
+					let i=new DOMParser().parseFromString(xhr.responseText,"text/html").querySelector("img[src^='//api.miniature.io']")
+					if(i)
+					{
+						let url=new URL(i.src)
+						if(url.search&&url.search.indexOf("url="))
+						{
+							t=decodeURIComponent(url.search.split("url=")[1].split("&")[0])
+						}
+					}
+					port.postMessage(t)
+				}
+				xhr.onerror=()=>port.postMessage(t)
+				if(iu.substr(-1) != "/")
+				{
+					iu += "/"
+				}
+				xhr.open("GET", iu+"info", true)
+				xhr.send()
+			})
+			break;
 
 		default:
-		console.warn("Invalid connection:", port)
+			console.warn("Invalid connection:", port)
 	}
 })
 
@@ -491,7 +557,6 @@ brws.webRequest.onBeforeRequest.addListener(details=>{
 },{types:["main_frame"],urls:["https://universal-bypass.org/options*"]},["blocking"])
 
 // Navigation handling including presenting referer header to destinations
-var refererCache={}
 brws.webRequest.onBeforeRequest.addListener(details=>{
 	let arr=details.url.substr(45).split("&referer=")
 	arr[0]=(new URL(decodeURIComponent(arr[0]))).toString()
@@ -508,7 +573,7 @@ if("EXTRA_HEADERS" in brws.webRequest.OnBeforeSendHeadersOptions)
 	infoSpec.push("extraHeaders")
 }
 brws.webRequest.onBeforeSendHeaders.addListener(details=>{
-	if(enabled&&details.url in refererCache)
+	if(FastForward.options.enabled&&details.url in refererCache)
 	{
 		details.requestHeaders.push({
 			name: "Referer",
@@ -519,7 +584,7 @@ brws.webRequest.onBeforeSendHeaders.addListener(details=>{
 },{types:["main_frame"],urls:["<all_urls>"]},infoSpec)
 
 brws.webRequest.onBeforeRedirect.addListener(details=>{
-	if(enabled&&details.url in refererCache)
+	if(FastForward.options.enabled&&details.url in refererCache)
 	{
 		if(details.redirectUrl == details.url + "/")
 		{
@@ -530,7 +595,7 @@ brws.webRequest.onBeforeRedirect.addListener(details=>{
 },{types:["main_frame"],urls:["<all_urls>"]})
 
 brws.webRequest.onCompleted.addListener(details=>{
-	if(enabled&&details.url in refererCache)
+	if(FastForward.options.enabled&&details.url in refererCache)
 	{
 		delete refererCache[details.url]
 	}
@@ -789,7 +854,7 @@ const onBeforeRequest_rules = {
 					return getRedirect(destination,"tracker")
 				}
 			}
-			if(blockIPLoggers)
+			if(FastForward.options.blockIPLoggers)
 			{
 				return {redirectUrl:brws.runtime.getURL("html/blocked.html")}
 			}
@@ -860,7 +925,7 @@ onHeadersReceived_rules = {
 		return {responseHeaders: details.responseHeaders}
 	},
 	contribute_hash: details => {
-		if(crowdEnabled&&details.method=="POST")
+		if(FastForward.options.crowdEnabled&&details.method=="POST")
 		{
 			let url=new URL(details.url)
 			if(url.hash.length>1)
@@ -868,7 +933,7 @@ onHeadersReceived_rules = {
 				for(let i in details.responseHeaders)
 				{
 					let header=details.responseHeaders[i]
-					if(header.name.toLowerCase()=="location"&&isGoodLink(header.value))
+					if(header.name.toLowerCase()=="location"&&checkUrlValidity(header.value))
 					{
 						let xhr=new XMLHttpRequest()
 						xhr.open("POST","https://crowd.fastforward.team/crowd/contribute_v1",true)
@@ -887,11 +952,11 @@ brws.storage.local.get(["userscript","bypass_counter"],res=>{
 	{
 		if(res.userscript)
 		{
-			userScript=res.userscript
+			FastForward.definitions.userScript=res.userscript
 		}
 		if(res.bypass_counter)
 		{
-			bypassCounter=res.bypass_counter
+			FastForward.options.bypassCounter = res.bypass_counter
 		}
 	}
 	updateBypassDefinitions()
@@ -899,21 +964,21 @@ brws.storage.local.get(["userscript","bypass_counter"],res=>{
 
 // Very Specific Preflight Bypasses
 brws.webRequest.onBeforeRequest.addListener(details=>{
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
 		return encodedRedirect(details.url.substr(details.url.indexOf("/12/1/")+6))
 	}
 },{types:["main_frame"],urls:["*://*.sh.st/r/*/12/1/*"]},["blocking"])
 
 brws.webRequest.onBeforeRequest.addListener(details=>{
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
 		return getRedirect(details.url.substr(details.url.substr(16).indexOf("/")+17))
 	}
 },{types:["main_frame"],urls:["http://sh.st/st/*/*"]},["blocking"])
 
 brws.webRequest.onBeforeRequest.addListener(details=>{
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
 		let url=details.url
 		do
@@ -934,7 +999,7 @@ brws.webRequest.onBeforeRequest.addListener(details=>{
 },{types:["main_frame"],urls:["http://gslink.co/a/*"]},["blocking"])
 
 brws.webRequest.onBeforeRequest.addListener(details=>{
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
 		let url=new URL(details.url)
 		if(url.searchParams.has("go"))
@@ -946,13 +1011,13 @@ brws.webRequest.onBeforeRequest.addListener(details=>{
 
 // Ouo.io/press / lnk2.cc / Cshort.org Crowd Bypass
 brws.webRequest.onHeadersReceived.addListener(details=>{
-	if(enabled&&crowdEnabled)
+	if(FastForward.options.enabled&&FastForward.options.crowdEnabled)
 	{
 		let url=new URL(details.url)
 		for(let i in details.responseHeaders)
 		{
 			let header=details.responseHeaders[i]
-			if(header.name.toLowerCase()=="location"&&isGoodLink(header.value))
+			if(header.name.toLowerCase()=="location"&&checkUrlValidity(header.value))
 			{
 				let xhr=new XMLHttpRequest(),
 				domain=url.hostname,path
@@ -976,12 +1041,12 @@ brws.webRequest.onHeadersReceived.addListener(details=>{
 ]},["blocking","responseHeaders"])
 
 // SoraLink Crowd Bypass
-let soralink_contribute={}
+
 brws.webRequest.onBeforeRequest.addListener(details=>{
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
 		const arg_index=details.url.indexOf("&soralink_contribute="),url=details.url.substr(0,arg_index)
-		if(crowdEnabled)
+		if(FastForward.options.crowdEnabled)
 		{
 			soralink_contribute[url]=details.url.substr(arg_index+21)
 		}
@@ -990,16 +1055,16 @@ brws.webRequest.onBeforeRequest.addListener(details=>{
 },{types:["main_frame"],urls:["*://*/?*=*&soralink_contribute=*"]},["blocking"])
 
 brws.webRequest.onHeadersReceived.addListener(details=>{
-	if(enabled)
+	if(FastForward.options.enabled)
 	{
-		if(crowdEnabled && details.url in soralink_contribute)
+		if(FastForward.options.crowdEnabled && details.url in soralink_contribute)
 		{
 			if(details.method=="POST")
 			{
 				for(let i in details.responseHeaders)
 				{
 					let header=details.responseHeaders[i]
-					if(header.name.toLowerCase()=="location"&&isGoodLink(header.value))
+					if(header.name.toLowerCase()=="location"&&checkUrlValidity(header.value))
 					{
 						let xhr=new XMLHttpRequest()
 						xhr.open("POST","https://crowd.fastforward.team/crowd/contribute_v1",true)
