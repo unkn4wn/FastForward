@@ -1499,7 +1499,7 @@ ensureDomLoaded(()=>{
 	})
 	domainBypass("fx4vip.com", () => {
 		ensureDomLoaded(() => {
-		ifElement("#get_link", a => {
+		ifElement("#button1", a => {
 			a.removeAttribute("disabled");
 			a.click();
 		})
