@@ -299,15 +299,30 @@ contributeAndNavigate=target=>{
 	}
 },
 insertInfoBox=text=>ensureDomLoaded(()=>{
-	const div=document.createElement("div")
-	div.style='z-index:999999;position:fixed;bottom:20px;right:20px;margin-left:20px;background:#eee;border-radius:10px;padding:20px;color:#111;font-size:21px;box-shadow:#111 0px 5px 40px;max-width:500px;font-family:-apple-system,BlinkMacSystemFont,segoe ui,Roboto,helvetica neue,Arial,sans-serif,apple color emoji,segoe ui emoji,segoe ui symbol;line-height:normal;cursor:pointer'
+	// ffibv1 = FastForwardInfoBoxVersion1
+	let infobox_container = document.querySelector('div#ffibv1');
+
+	if (!infobox_container) {
+		infobox_container = document.createElement('div');
+		infobox_container.setAttribute('id', 'ffibv1');
+		infobox_container.setAttribute('style', `
+			z-index: 99999999; position: fixed; bottom: 0; line-height:normal;
+			right: 0; padding: 20px; color:#111; font-size:21px;
+			font-family:-apple-system,BlinkMacSystemFont,segoe ui,Roboto,helvetica neue,Arial,sans-serif,apple color emoji,segoe ui emoji,segoe ui symbol;
+			max-width:500px; display: flex; flex-direction: column-reverse;
+		`);
+
+		document.body.appendChild(infobox_container);
+	}
+	const div=document.createElement("div");
+	div.style='margin-left:20px; margin-bottom: 20px;background:#eee;border-radius:10px;padding:20px;box-shadow:#111 0px 5px 40px;cursor:pointer'
 	div.innerHTML='<img src="{{icon/48.png}}" style="width:24px;height:24px;margin-right:8px"><span style="display:inline"></span>'
 	div.setAttribute("tabindex","-1")
 	div.setAttribute("aria-hidden","true")
 	const span=div.querySelector("span")
 	span.textContent=text
 	div.onclick=()=>document.body.removeChild(div)
-	document.body.appendChild(div)
+	infobox_container.appendChild(div)
 }),
 backgroundScriptBypassClipboard=c=>{
 	if(c)
@@ -1200,8 +1215,17 @@ ensureDomLoaded(()=>{
 		document.querySelector("#captchaVerifiedStatus").click()
 		doTheThing(()=>doTheThing(()=>doTheThing(()=>document.querySelector("#template-contactform-submit").click())))
 	})
-	domainBypass(/^((www\.)?(((get-click2|informations-library|media-blue|akashirohige|aibouanimelink|wwwfotografgotlin|casperqu|safelinksencrypter)\.blogspot|business\.ominfoupdate|insurance\.5ggyan|majidzhacker|citgratis|tekloggers|pro-bangla|ph\.(apps2app|samapkstore)|blog\.(hulblog|omgmusik|omglyrics))\.com|(pastikan|belajar-bersama2)\.me|ph\.tpaste\.net|(blog\.infolanjutan|jkoding)\.xyz|((safe\.onbatch|anonimfiles)\.my|google-playss\.sdetectives)\.id|jackofnine\.site|getlink\.animesanka\.club))$/,()=>{
-		let u=aesCrypto.decrypt(convertstr(location.href.substr(location.href.indexOf("?o=")+3)),convertstr("root"))
+	domainBypass(/^((www\.)?(((get-click2|informations-library|media-blue|akashirohige|aibouanimelink|wwwfotografgotlin|casperqu|safelinksencrypter)\.blogspot|business\.ominfoupdate|insurance\.5ggyan|majidzhacker|citgratis|tekloggers|pro-bangla|ph\.(apps2app|samapkstore)|blog\.(hulblog|omgmusik|omglyrics))\.com|(pastikan|belajar-bersama2)\.me|(ph|fp)\.(tpaste|ontools)\.net|(blog\.infolanjutan|jkoding)\.xyz|((safe\.onbatch|anonimfiles)\.my|google-playss\.sdetectives)\.id|jackofnine\.site|getlink\.animesanka\.club))$/,()=>{
+		let convertfn
+		if (typeof convertstr=='function')
+		{
+			convertfn = convertstr
+		}
+		if (typeof apps2app=='function')
+		{
+			convertfn = apps2app
+		}
+		let u=aesCrypto.decrypt(convertfn(location.href.substr(location.href.indexOf("?o=")+3)),convertfn("root"))
 		isGoodLink_allowSelf=true
 		if(isGoodLink(u))
 		{
@@ -1210,17 +1234,17 @@ ensureDomLoaded(()=>{
 		}
 		else if(typeof uri=="string")
 		{
-			u=aesCrypto.decrypt(convertstr(uri.substr(uri.indexOf("?o=")+3)),convertstr("root"))
+			u=aesCrypto.decrypt(convertfn(uri.substr(uri.indexOf("?o=")+3)),convertfn("root"))
 			safelyNavigate(u)
 		}
 		else if(typeof get_link=="string")
 		{
-			u=aesCrypto.decrypt(convertstr(get_link),convertstr("root"))
+			u=aesCrypto.decrypt(convertfn(get_link),convertfn("root"))
 			safelyNavigate(u)
 		}
 		else if(location.href.indexOf("#go")>-1)
 		{
-			u=aesCrypto.decrypt(convertstr(location.href.substr(location.href.indexOf("#go")+3)),convertstr("root"))
+			u=aesCrypto.decrypt(convertfn(location.href.substr(location.href.indexOf("#go")+3)),convertfn("root"))
 			location.hash=""
 			safelyNavigate(u.split("UI=")[1].split("NF=")[0])
 		}
@@ -1973,6 +1997,11 @@ ensureDomLoaded(()=>{
 		ifElement("#redirect-button", () => openFinalLink())
 	})
 	//Insertion point for domain-or-href-specific bypasses running after the DOM is loaded. Bypasses here will no longer need to call ensureDomLoaded.
+	domainBypass("megadb.net", () => {
+    ifElement("form[name='F1']", function(a) {
+        a.submit();
+		});
+	});
 	hrefBypass(/enxf\.net\/resources\/[a-zA-Z-\.\d]+\/download/, () => {
 		ifElement(".XGT-Download-form", ex => safelyNavigate(ex.action));
 	})
@@ -2028,6 +2057,8 @@ ensureDomLoaded(()=>{
 	//	safelyNavigate(a.value)
 	//    })
 	//})
+
+	
 	domainBypass("theepochtimes.com", () => {
 	    awaitElement("#landing-page", subscriptionWall => {
 			subscriptionWall.remove()
